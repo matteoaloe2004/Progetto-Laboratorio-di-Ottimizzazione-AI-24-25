@@ -1,7 +1,9 @@
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 
 def get_data_augmentation():
     return ImageDataGenerator(
+        preprocessing_function=preprocess_input,
         rotation_range=20,
         width_shift_range=0.1,
         height_shift_range=0.1,
@@ -9,6 +11,5 @@ def get_data_augmentation():
         zoom_range=0.1,
         horizontal_flip=True,
         fill_mode='nearest',
-        rescale=1./255,
-        validation_split=0.2  # se serve per splitting
+        validation_split=0.2
     )

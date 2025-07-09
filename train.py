@@ -1,12 +1,14 @@
-from model import create_cnn_model, create_transfer_model
-from augmentation import get_data_augmentation
-from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
-from tqdm.keras import TqdmCallback
+from tensorflow.keras.applications.mobilenet_v2 import MobileNetV2, preprocess_input
+from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from augmentation import get_data_augmentation  # Importa la funzione corretta
 
-def train(data_dir, img_size=(224, 224), batch_size=32, epochs=10, use_transfer_learning=False):
-    datagen = get_data_augmentation()
+def train(data_dir, img_size=(224, 224), batch_size=64, epochs=10, use_transfer_learning=True):
+    datagen = get_data_augmentation()  # Usa il Data Augmentation con split
 
-    train_generator = datagen.flow_from_directory(
+    train_gen = datagen.flow_from_directory(
         data_dir,
         target_size=img_size,
         batch_size=batch_size,
@@ -16,35 +18,62 @@ def train(data_dir, img_size=(224, 224), batch_size=32, epochs=10, use_transfer_
         seed=42
     )
 
-    val_generator = datagen.flow_from_directory(
+    val_gen = datagen.flow_from_directory(
         data_dir,
         target_size=img_size,
         batch_size=batch_size,
         class_mode='categorical',
         subset='validation',
-        shuffle=True,
+        shuffle=False,
         seed=42
     )
 
-    num_classes = train_generator.num_classes
-    input_shape = img_size + (3,)
+    num_classes = train_gen.num_classes
 
-    model = create_transfer_model(input_shape, num_classes) if use_transfer_learning else create_cnn_model(input_shape, num_classes)
+    if use_transfer_learning:
+        base_model = MobileNetV2(include_top=False, input_shape=img_size + (3,), weights='imagenet')
+        base_model.trainable = False
 
-    callbacks = [
-        ModelCheckpoint('saved_models/best_model.keras', monitor='val_accuracy', save_best_only=True, mode='max'),
-        EarlyStopping(monitor='val_accuracy', patience=5, restore_best_weights=True),
-        TqdmCallback(verbose=1)
-    ]
+        x = base_model.output
+        x = GlobalAveragePooling2D()(x)
+        predictions = Dense(num_classes, activation='softmax')(x)
 
-    history = model.fit(
-        train_generator,
-        epochs=epochs,
-        validation_data=val_generator,
-        callbacks=callbacks,
-        steps_per_epoch=len(train_generator),
-        validation_steps=len(val_generator),
-        verbose=0
-    )
+        model = Model(inputs=base_model.input, outputs=predictions)
 
-    return model, history, val_generator
+        model.compile(optimizer=Adam(learning_rate=1e-4),
+                      loss='categorical_crossentropy',
+                      metrics=['accuracy'])
+
+        early_stop = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
+        reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=2)
+
+        history = model.fit(
+            train_gen,
+            validation_data=val_gen,
+            epochs=epochs,
+            callbacks=[early_stop, reduce_lr]
+        )
+
+        # Fine tuning: sblocca gli ultimi 20 layer
+        base_model.trainable = True
+        for layer in base_model.layers[:-20]:
+            layer.trainable = False
+
+        model.compile(optimizer=Adam(learning_rate=1e-5),
+                      loss='categorical_crossentropy',
+                      metrics=['accuracy'])
+
+        history_ft = model.fit(
+            train_gen,
+            validation_data=val_gen,
+            epochs=epochs // 2,
+            callbacks=[early_stop, reduce_lr]
+        )
+
+        # Unisce gli storici
+        for key in history.history.keys():
+            history.history[key].extend(history_ft.history[key])
+
+        return model, history, val_gen
+    else:
+        raise NotImplementedError("Training senza transfer learning non implementato.")

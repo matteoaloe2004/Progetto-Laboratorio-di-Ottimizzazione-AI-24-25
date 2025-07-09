@@ -30,16 +30,28 @@ def create_cnn_model(input_shape=(64,64,3), num_classes=38):
     )
     return model
 
-def create_transfer_model(input_shape=(64,64,3), num_classes=38):
+def create_transfer_model(input_shape=(128,128,3), num_classes=38, fine_tune_at=100):
     base_model = MobileNetV2(include_top=False, weights='imagenet', input_shape=input_shape)
-    base_model.trainable = False  # freeze
+
+    # 🔒 Fissa tutti i layer prima di `fine_tune_at`
+    for layer in base_model.layers[:fine_tune_at]:
+        layer.trainable = False
+
+    # 🔓 Sblocca i layer da `fine_tune_at` in poi
+    for layer in base_model.layers[fine_tune_at:]:
+        layer.trainable = True
+
     x = base_model.output
     x = GlobalAveragePooling2D()(x)
     x = Dropout(0.3)(x)
     outputs = Dense(num_classes, activation='softmax')(x)
+
     model = Model(inputs=base_model.input, outputs=outputs)
 
-    model.compile(optimizer=Adam(learning_rate=0.0005),
-                  loss='categorical_crossentropy',
-                  metrics=['accuracy'])
+    model.compile(
+        optimizer=Adam(learning_rate=0.0001),  # learning rate più basso per evitare "catastrofi"
+        loss='categorical_crossentropy',
+        metrics=['accuracy']
+    )
+
     return model

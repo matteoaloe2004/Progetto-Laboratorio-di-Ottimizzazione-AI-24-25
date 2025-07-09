@@ -2,7 +2,7 @@ import os
 import numpy as np
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
-def load_plantvillage_data(data_dir, img_size=(64,64), batch_size=32, val_split=0.2, seed=42):
+def load_plantvillage_data(data_dir, img_size=(224,224), batch_size=64, val_split=0.2, seed=42):
     """
     Carica dataset PlantVillage da directory strutturata:
     data_dir/
