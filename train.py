@@ -1,12 +1,15 @@
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.applications.mobilenet_v2 import MobileNetV2, preprocess_input
 from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
-from augmentation import get_data_augmentation  # Importa la funzione corretta
 
-def train(data_dir, img_size=(224, 224), batch_size=64, epochs=10, use_transfer_learning=True):
-    datagen = get_data_augmentation()  # Usa il Data Augmentation con split
+def train(data_dir, img_size=(224,224), batch_size=64, epochs=10, use_transfer_learning=True):
+    datagen = ImageDataGenerator(
+        preprocessing_function=preprocess_input,
+        validation_split=0.2
+    )
 
     train_gen = datagen.flow_from_directory(
         data_dir,
@@ -54,7 +57,7 @@ def train(data_dir, img_size=(224, 224), batch_size=64, epochs=10, use_transfer_
             callbacks=[early_stop, reduce_lr]
         )
 
-        # Fine tuning: sblocca gli ultimi 20 layer
+        # Fine tuning (sbloccare ultimi layer)
         base_model.trainable = True
         for layer in base_model.layers[:-20]:
             layer.trainable = False
@@ -66,11 +69,11 @@ def train(data_dir, img_size=(224, 224), batch_size=64, epochs=10, use_transfer_
         history_ft = model.fit(
             train_gen,
             validation_data=val_gen,
-            epochs=epochs // 2,
+            epochs=epochs//2,
             callbacks=[early_stop, reduce_lr]
         )
 
-        # Unisce gli storici
+        # Unire gli storici
         for key in history.history.keys():
             history.history[key].extend(history_ft.history[key])
 
