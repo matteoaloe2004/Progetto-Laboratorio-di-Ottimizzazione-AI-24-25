@@ -1,4 +1,4 @@
-tensorflow
+pytorch
 numpy
 matplotlib
 seaborn

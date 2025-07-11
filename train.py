@@ -1,82 +1,63 @@
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.applications.mobilenet_v2 import MobileNetV2, preprocess_input
-from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
-from tensorflow.keras.models import Model
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from tqdm import tqdm
 
-def train(data_dir, img_size=(224,224), batch_size=64, epochs=10, use_transfer_learning=True):
-    datagen = ImageDataGenerator(
-        preprocessing_function=preprocess_input,
-        validation_split=0.2
-    )
+def train_model(model, train_loader, val_loader, device, epochs=10, lr=1e-4):
+    model.to(device)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=lr)
 
-    train_gen = datagen.flow_from_directory(
-        data_dir,
-        target_size=img_size,
-        batch_size=batch_size,
-        class_mode='categorical',
-        subset='training',
-        shuffle=True,
-        seed=42
-    )
+    train_losses, val_losses, train_accs, val_accs = [], [], [], []
 
-    val_gen = datagen.flow_from_directory(
-        data_dir,
-        target_size=img_size,
-        batch_size=batch_size,
-        class_mode='categorical',
-        subset='validation',
-        shuffle=False,
-        seed=42
-    )
+    for epoch in range(epochs):
+        model.train()
+        running_loss = 0.0
+        correct = 0
+        total = 0
 
-    num_classes = train_gen.num_classes
+        for inputs, labels in tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}"):
+            inputs, labels = inputs.to(device), labels.to(device)
 
-    if use_transfer_learning:
-        base_model = MobileNetV2(include_top=False, input_shape=img_size + (3,), weights='imagenet')
-        base_model.trainable = False
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
 
-        x = base_model.output
-        x = GlobalAveragePooling2D()(x)
-        predictions = Dense(num_classes, activation='softmax')(x)
+            running_loss += loss.item()
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
 
-        model = Model(inputs=base_model.input, outputs=predictions)
+        train_losses.append(running_loss / len(train_loader))
+        train_accs.append(correct / total)
 
-        model.compile(optimizer=Adam(learning_rate=1e-4),
-                      loss='categorical_crossentropy',
-                      metrics=['accuracy'])
+        val_loss, val_acc = evaluate(model, val_loader, criterion, device)
+        val_losses.append(val_loss)
+        val_accs.append(val_acc)
 
-        early_stop = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
-        reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=2)
+        print(f"Train Loss: {train_losses[-1]:.4f}, Train Acc: {train_accs[-1]:.4f}")
+        print(f"Val Loss: {val_losses[-1]:.4f}, Val Acc: {val_accs[-1]:.4f}")
 
-        history = model.fit(
-            train_gen,
-            validation_data=val_gen,
-            epochs=epochs,
-            callbacks=[early_stop, reduce_lr]
-        )
+    return model, train_losses, val_losses, train_accs, val_accs
 
-        # Fine tuning (sbloccare ultimi layer)
-        base_model.trainable = True
-        for layer in base_model.layers[:-20]:
-            layer.trainable = False
+def evaluate(model, loader, criterion, device):
+    model.eval()
+    loss_total = 0.0
+    correct = 0
+    total = 0
 
-        model.compile(optimizer=Adam(learning_rate=1e-5),
-                      loss='categorical_crossentropy',
-                      metrics=['accuracy'])
+    with torch.no_grad():
+        for inputs, labels in loader:
+            inputs, labels = inputs.to(device), labels.to(device)
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            loss_total += loss.item()
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
 
-        history_ft = model.fit(
-            train_gen,
-            validation_data=val_gen,
-            epochs=epochs//2,
-            callbacks=[early_stop, reduce_lr]
-        )
+    return loss_total / len(loader), correct / total
 
-        # Unire gli storici
-        for key in history.history.keys():
-            history.history[key].extend(history_ft.history[key])
 
-        return model, history, val_gen
-    else:
-        raise NotImplementedError("Training senza transfer learning non implementato.")

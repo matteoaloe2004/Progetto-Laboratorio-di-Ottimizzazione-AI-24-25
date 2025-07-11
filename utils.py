@@ -3,6 +3,34 @@ import re
 import shutil
 import random
 
+def split_train_val(input_dir, output_dir, val_ratio=0.2):
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+    os.makedirs(os.path.join(output_dir, 'train'))
+    os.makedirs(os.path.join(output_dir, 'val'))
+
+    for class_name in os.listdir(input_dir):
+        class_path = os.path.join(input_dir, class_name)
+        if not os.path.isdir(class_path):
+            continue
+
+        images = [f for f in os.listdir(class_path) if f.lower().endswith(('.jpg', '.png', '.jpeg'))]
+        random.shuffle(images)
+
+        split_idx = int(len(images) * (1 - val_ratio))
+        train_imgs = images[:split_idx]
+        val_imgs = images[split_idx:]
+
+        train_class_path = os.path.join(output_dir, 'train', class_name)
+        val_class_path = os.path.join(output_dir, 'val', class_name)
+        os.makedirs(train_class_path)
+        os.makedirs(val_class_path)
+
+        for img in train_imgs:
+            shutil.copy2(os.path.join(class_path, img), os.path.join(train_class_path, img))
+        for img in val_imgs:
+            shutil.copy2(os.path.join(class_path, img), os.path.join(val_class_path, img))
+
 def count_images_per_class(data_dir):
     class_counts = {}
     for class_name in os.listdir(data_dir):
