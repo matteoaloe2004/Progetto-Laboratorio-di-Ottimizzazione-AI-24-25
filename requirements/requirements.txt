@@ -1,0 +1,9 @@
+torch
+cuda
+numpy
+matplotlib
+seaborn
+scikit-learn
+opencv-python
+Pillow
+tensorboard
