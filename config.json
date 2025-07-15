@@ -1,11 +1,19 @@
 {
   "model_name": "mobilenetv2",
   "num_classes": 15,
+<<<<<<< HEAD
   "batch_size": 64,
   "learning_rate": 0.001,
   "num_epochs": 10,
   "input_size": 224,
   "early_stopping_patience": 3,
+=======
+  "batch_size": 32,
+  "learning_rate": 0.001,
+  "num_epochs": 50,
+  "input_size": 224,
+  "early_stopping_patience": 10,
+>>>>>>> a0301429e822f01dc2ba20ca3119bb73678b2601
   "target_accuracy": 0.95,
   
   "train_data_path": "./Dataset/PlantVillage_split/train",
