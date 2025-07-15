@@ -8,17 +8,22 @@ def plot_training(train_losses, val_losses, train_accs, val_accs):
     plt.figure(figsize=(12, 5))
 
     plt.subplot(1, 2, 1)
-    plt.plot(train_accs, label='Train Acc')
-    plt.plot(val_accs, label='Val Acc')
-    plt.title('Accuracy')
-    plt.legend()
-
-    plt.subplot(1, 2, 2)
     plt.plot(train_losses, label='Train Loss')
     plt.plot(val_losses, label='Val Loss')
     plt.title('Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
     plt.legend()
 
+    plt.subplot(1, 2, 2)
+    plt.plot(train_accs, label='Train Acc')
+    plt.plot(val_accs, label='Val Acc')
+    plt.title('Accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.legend()
+
+    plt.tight_layout()
     plt.show()
 
 def evaluate_model(model, dataloader, device, class_names):
