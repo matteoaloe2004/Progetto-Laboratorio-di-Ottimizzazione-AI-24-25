@@ -2,7 +2,7 @@ import torch.nn as nn
 import torchvision.models as models
 
 class CustomCNN(nn.Module):
-    def __init__(self, num_classes=38):
+    def __init__(self, num_classes=15):
         super(CustomCNN, self).__init__()
 
         self.features = nn.Sequential(
